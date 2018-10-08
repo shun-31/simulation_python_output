@@ -5,44 +5,100 @@ from scipy.special import sph_harm as SH
 import numpy as np
 import scipy
 import os
-import math
 import glob
 
 #定数
 t_start = 0 #初期時間
 t_step = 0 #時間刻み、シミュレーション：3.33333E-15or1.33333e-15or1.16667E-15	
-angle = np.arange(0, 180, 0.5) #角度刻み
-Jmax = 20 #simulation時のnonadiabatichにあるJ値
+angle = np.arange(0.5, 180.5, 0.5) #角度刻み
+Jmax = 30 #simulation時のnonadiabatichにあるJ値
 B0 = 1.989581 #分子ごとの定数, N2パターン
 De = 5.76E-6
 c0 = 29979250000 
+phi = 0.0
+PI = np.pi
+#angle_count = 360/0.5 + 1
+#print(angle_count)
 
-#ファイル読み込み
+
+#length_memo = length(Jstart, Jmax, Mstart)
+def length(Jstart, Jmax, Mstart):
+	list1 = []
+	for j in range(Jstart, Jmax, 2):
+		for m in range(-(j-Mstart), j+1, 2):
+			list1.append(0)
+	length_memo = len(list1)*2
+	return(length_memo)
+
+
+def sph_harm(Jstart, Jmax, Mstart, B0, De, phi, PI, c0, memo): #球面調和関数計算
+	for j in range(Jstart, Jmax, 2):
+		Erot = B0*j*(j+1)-De*j*j*(j+1)*(j+1)
+		for m in range(-(j-Mstart), j+1, 2):
+			Erot_list.append(Erot*c0)
+			Erot_list.append(Erot*c0)
+			harm_list = [SH(m,j,phi,(ang/(180.))*PI) for ang in np.arange(0, 180.5, 0.5)]
+			harm_list.extend(harm_list[::-1][1:-1]) #0から359.5度まで
+			harm_list2 = [1j*SH(m,j,phi,(ang/(180.))*PI) for ang in np.arange(0, 180.5, 0.5)]
+			harm_list2.extend(harm_list2[::-1][1:-1]) #0から359.5度まで
+			memo = np.vstack((memo, np.array(harm_list)))
+			memo = np.vstack((memo, np.array(harm_list2))) #球面調和関数
+	return(memo, Erot_list)
+			#print(len(memo))
+'''
+def energy(Erot_list, c0, PI, Tlist):
+	energy1 = np.dot(Tlist, np.array([Erot_list])) #t行jm列の行列
+	energy2 = np.exp(-1.0j*2*PI*energy1)
+'''
+
+
 
 
 #角度分布計算
-#M=0ver.
-for j in range(0,Jmax-2): #J=0
-	memo[j]={}
-	Erot = B0*j*(j+1)-De*j*j*(j+1)*(j+1)
-	Erot2 = Erot*c0
-	for m in range(-j, j+1, 2):
-		memo[j][m] = np.zeros((A), dtype = np.complex)
-		for ang in angle:
-			temp = SH(m,j,phi,ang/(A/2.)*PI)
+kensaku = glob.glob('[0-1][0-2]terms.dat') #00~12までを検索, 00.10.11.12
+for filename in kensaku:
+	Jpop = np.loadtxt(open(filename), skiprows = 1) #１行飛ばす
+	Tlist = Jpop[:,-1].reshape(len(Jpop[:,-1]),1)
+	Jpop = Jpop[:,0:-1] #時間削除
+	if '00' in filename:
+		Erot_list=[]
+		Jstart = 0
+		Mstart = 0
+		#length_memo = length(Jstart, Jmax, Mstart)
+		memo = np.zeros((0, 720), dtype=np.complex)
+		memo = sph_harm(Jstart, Jmax, Mstart, B0, De, phi, PI, c0, memo)[0] #球面調和関数計算
+		Erot_list = sph_harm(Jstart, Jmax, Mstart, B0, De, phi, PI, c0, memo)[1] #エネルギー
+		#エネルギー項の計算
+		energy1 = np.dot(Tlist, np.array([Erot_list])) #t行jm列の行列
+		energy2 = np.exp(-1.0j*2*PI*energy1)
+		#行列計算、角度分布計算
+		pop_cal = np.dot(Jpop, memo) #行列の掛け算
+		#共役を掛ける
+		carpet00 = pop_cal * np.conj(pop_cal)
+	elif '10' in filename:
+		Jpop10 = Jpop
+	elif '11' in filename:
+		Erot_list=[]
+		Jstart = 1
+		#length_memo = length(Jstart, Jmax, Mstart)
+		memo = np.zeros((0, 720), dtype=np.complex)
+		sph_harm(Jstart, Jmax, Mstart, B0, De, phi, PI, c0, memo) #球面調和関数計算
+		#行列計算、角度分布計算
+		pop_cal = np.dot(Jpop, memo) #行列の掛け算
+		carpet11 = pop_cal * np.conj(pop_cal)
+	elif '12' in filename:
+		Jpop = Jpop10/9 + Jpop/9
+		Erot_list=[]
+		Jstart = 1
+		Mstart = 0 #初期値はJM=1-1,11
+		#length_memo = length(Jstart, Jmax, Mstart)
+		memo = np.zeros((0, 720), dtype=np.complex) #角度が0.5°刻みのため、720コ
+		sph_harm(Jstart, Jmax, Mstart, B0, De, phi, PI, c0, memo) #球面調和関数計算
+		#行列計算、角度分布計算
+		pop_cal = np.dot(Jpop, memo) #行列の掛け算
+		carpet1012 = pop_cal * np.conj(pop_cal)
 
-for j in range(1,Jmax-1): #J=1
-	memo[j]={}
-	Erot = B0*j*(j+1)-De*j*j*(j+1)*(j+1)
-	Erot2 = Erot*c0
-	for m in range(-j, j+1, 2)
-
-#M=1,-1ver.
-for j in range(1,Jmax-1): #J=1
-	memo[j]={}
-	Erot = B0*j*(j+1)-De*j*j*(j+1)*(j+1)
-	Erot2 = Erot*c0
-	for m in range(-j, j+1, 2)
+carpet = carpet00 * 2/3 + carpet11 / 9 + carpet1012 #carpet完成
 
 #ファイル出力
 #レーザーなまらせ
@@ -51,3 +107,86 @@ for j in range(1,Jmax-1): #J=1
 #cos2計算パート
 #cos2出力パート、２Dカーペット
 #polarplot出力パート
+
+
+'''
+#M=0ver.
+Erot_list=[]
+memo = np.zeros((0, 720))
+Jstart = 0
+Mstart = 0
+sph_harm(Jstart, Jmax, Mstart, B0, De, phi, PI) #球面調和関数計算
+
+exp(-1.0j*Erot*c0*Tnow)
+
+
+#角度分布計算
+#dic作成、球面調和関数
+#M=0ver.
+for j in range(0,Jmax,2): #J=0
+	memo1={}
+	Erot1={}
+	Erot = B0*j*(j+1)-De*j*j*(j+1)*(j+1)
+	Erot1[j] = Erot*c0
+	for m in range(-j, j+1, 2):
+		memo1[(j, m)] = np.zeros((721), dtype = np.complex)
+		ang = 0
+		temp = SH(m,j,phi,(ang/(180.))*PI)
+		memo1[(j, m)][ang] = temp
+		for ang in angle:
+			ang2 = 360-ang
+			temp = SH(m,j,phi,(ang/(180.))*PI)
+			memo1[(j, m)][ang] = temp
+			memo1[(j, m)][ang2] = temp
+
+
+for j in range(1,Jmax,2): #J=1
+	memo2={}
+	Erot2={}
+	Erot = B0*j*(j+1)-De*j*j*(j+1)*(j+1)
+	Erot2[j] = Erot*c0
+	for m in range(-(j-1), j+1, 2):
+		memo2[(j, m)] = np.zeros((721), dtype = np.complex)
+		ang = 0
+		temp = SH(m,j,phi,(ang/(180.))*PI)
+		memo2[(j, m)][ang] = temp
+		for ang in angle:
+			ang2 = 360-ang
+			temp = SH(m,j,phi,(ang/(180.))*PI)
+			memo2[(j, m)][ang] = temp
+			memo2[(j, m)][ang2] = temp
+
+
+#M=1,-1ver.
+for j in range(1,Jmax, 2): #J=1
+	memo3={}
+	Erot3={}
+	Erot = B0*j*(j+1)-De*j*j*(j+1)*(j+1)
+	Erot3[j] = Erot*c0
+	for m in range(-j, j+1, 2):
+		memo3[(j, m)] = np.zeros((721), dtype = np.complex)
+		ang = 0
+		temp = SH(m,j,phi,(ang/(180.))*PI)
+		memo3[(j, m)][ang] = temp
+		for ang in angle:
+			ang2 = 360-ang
+			temp = SH(m,j,phi,(ang/(180.))*PI)
+			memo3[(j, m)][ang] = temp
+			memo3[(j, m)][ang2] = temp
+
+#ファイル読み込み
+kensaku = glob.glob('[0-1][0-2]terms.dat') #00~12までを検索, 00.10.11.12
+gyo3 = np.vstack((gyo3, np.loadtxt(open(filename))[:-1]))
+[:,-1] #時間抽出
+b[:,0:-1] #時間削除
+
+#始状態J=1
+#Mが奇数のものだけ先に重ね合わせる
+'''
+
+
+
+
+
+
+
